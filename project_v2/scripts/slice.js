@@ -26,7 +26,7 @@
     "node slice.js --inFile ../../milestone2.js --outFile predicated.js --lineNb 8";
 
     "node ../../../src/js/commands/jalangi.js --inlineIID --inlineSource --analysis ../../analysis.js ../../milestone2.js";
-    console.log("entering slicing.js");
+    // console.log("entering slicing.js");
     // inputArgs =
     //   " --inlineIID --inlineSource --analysis ../../analysis.js " + inFile;
     // stmt = "node ../../../src/js/commands/jalangi.js" + inputArgs;
@@ -42,7 +42,7 @@
     //   }
     // });
 
-    console.log("entering acorn");
+    // console.log("entering acorn");
     const acorn = require("acorn");
     const fs = require("fs");
     const escodegen = require("escodegen");
@@ -50,9 +50,9 @@
     var root = acorn.parse(buffer, { locations: true });
     var body = root.body;
     const path = "./output_" + inFile.split("/").slice(-1)[0];
-    console.log(path);
+    // console.log(path);
     const { output } = require(path);
-    console.log(output);
+    // console.log(output);
     output.push(parseInt(lineNb));
     for (let i = 0; i < output.length; i++) {
       if (typeof output[i] == "string") {

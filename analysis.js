@@ -95,6 +95,77 @@
     },
 
     /**
+     * This callback is called after a property of an object is accessed.
+     *
+     * @param {number} iid - Static unique instruction identifier of this callback
+     * @param {*} base - Base object
+     * @param {string|*} offset - Property
+     * @param {*} val - Value of <code>base[offset]</code>
+     * @param {boolean} isComputed - True if property is accessed using square brackets.  For example,
+     * <tt>isComputed</tt> is <tt>true</tt> if the get field operation is <tt>o[p]</tt>, and <tt>false</tt>
+     * if the get field operation is <tt>o.p</tt>
+     * @param {boolean} isOpAssign - True if the operation is of the form <code>o.p op= e</code>
+     * @param {boolean} isMethodCall - True if the get field operation is part of a method call (e.g. <tt>o.p()</tt>)
+     * @returns {{result: *} | undefined} - If an object is returned, the value of the get field operation  is
+     * replaced with the value stored in the <tt>result</tt> property of the object.
+     */
+    getField: function (
+      iid,
+      base,
+      offset,
+      val,
+      isComputed,
+      isOpAssign,
+      isMethodCall
+    ) {
+      var id = J$.getGlobalIID(iid);
+      var location = J$.iidToLocation(id);
+      console.log("a field is raed at " + location);
+      let index1 = getPosition(location, ":", 2);
+      let index2 = getPosition(location, ":", 3);
+      var line = location.charAt(index1 + 1);
+      while (index1 + 2 < index2) {
+        line = line + location.charAt(index1 + 2);
+        index1++;
+      }
+      console.log(line);
+      console.log(offset);
+      info.push([parseInt(line), offset, "read"]);
+      return { result: val };
+    },
+
+    /**
+     * This callback is called after a property of an object is written.
+     *
+     * @param {number} iid - Static unique instruction identifier of this callback
+     * @param {*} base - Base object
+     * @param {*} offset - Property
+     * @param {*} val - Value to be stored in <code>base[offset]</code>
+     * @param {boolean} isComputed - True if property is accessed using square brackets.  For example,
+     * <tt>isComputed</tt> is <tt>true</tt> if the get field operation is <tt>o[p]</tt>, and <tt>false</tt>
+     * if the get field operation is <tt>o.p</tt>
+     * @param {boolean} isOpAssign - True if the operation is of the form <code>o.p op= e</code>
+     * @returns {{result: *} | undefined} -   If an object is returned, the result of the put field operation is
+     * replaced with the value stored in the <tt>result</tt> property of the object.
+     */
+    putField: function (iid, base, offset, val, isComputed, isOpAssign) {
+      var id = J$.getGlobalIID(iid);
+      var location = J$.iidToLocation(id);
+      console.log("a field is written at " + location);
+      let index1 = getPosition(location, ":", 2);
+      let index2 = getPosition(location, ":", 3);
+      var line = location.charAt(index1 + 1);
+      while (index1 + 2 < index2) {
+        line = line + location.charAt(index1 + 2);
+        index1++;
+      }
+      console.log(line);
+      console.log(offset);
+      info.push([parseInt(line), offset, "written"]);
+      return { result: val };
+    },
+
+    /**
      * This callback is called when an execution terminates in node.js.  In a browser
      * environment, the callback is called if ChainedAnalyses.js or ChainedAnalysesNoCheck.js
      * is used and Alt-Shift-T is pressed.
@@ -103,6 +174,7 @@
      */
     endExecution: function () {
       var dependency = {};
+      console.log(info);
       for (var i = 0; i < info.length; i++) {
         if (info[i][1] != "sliceMe") {
           // console.log(
@@ -131,18 +203,19 @@
           }
         }
       }
+      // console.log(dependency);
       var lineNb;
       // const inputs = read_criteria_file("../../testcase.json");
       const inputs = read_criteria_file("./milestone2_testCases.json");
-      console.log(inputs);
-      console.log(fileName);
+      // console.log(inputs);
+      // console.log(fileName);
 
       for (const object of inputs) {
         if (object.inFile == fileName) {
           lineNb = object.lineNb;
         }
       }
-      console.log(lineNb);
+      // console.log(lineNb);
       // var lineNb = 8;
       var dependencyNew = [];
       // console.log(dependency);
@@ -164,11 +237,12 @@
           dependencyNew[index] = '"' + dependencyNew[index] + '"';
         }
       }
+      dependencyNew = [...new Set(dependencyNew)];
       console.log("var output = [");
       console.log(dependencyNew);
       console.log("module.exports = {output};");
       fileName = fileName.split("/").slice(-1)[0];
-      console.log(fileName);
+      // console.log(fileName);
       var outFile = "output_" + fileName;
       fs.writeFileSync(outFile, "var output = [");
       fs.appendFileSync(outFile, dependencyNew.toString() + "]");
