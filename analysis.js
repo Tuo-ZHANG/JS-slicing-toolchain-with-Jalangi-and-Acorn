@@ -1,6 +1,7 @@
 (function () {
   var info = [];
   var fileName;
+  var variableToObjectMap = [];
   J$.analysis = {
     /**
      * This callback is triggered at the beginning of a scope for every local variable declared in the scope, for
@@ -23,18 +24,6 @@
      * variables declared with <tt>var</tt>.
      *
      */
-    declare: function (
-      iid,
-      name,
-      val,
-      isArgument,
-      argumentIndex,
-      isCatchParam
-    ) {
-      var id = J$.getGlobalIID(iid);
-      var location = J$.iidToLocation(id);
-      return { result: val };
-    },
 
     /**
      * This callback is called after a variable is read.
@@ -52,9 +41,6 @@
       var location = J$.iidToLocation(id);
       if (fileName == undefined) {
         fileName = location.split("\\").slice(-1)[0].split(":")[0];
-        // fileName = "../../" + fileName;
-        fileName = "../testcases/milestone2/" + fileName;
-        console.log(fileName);
       }
       let index1 = getPosition(location, ":", 2);
       let index2 = getPosition(location, ":", 3);
@@ -64,7 +50,19 @@
         line = line + location.charAt(index1 + 2);
         index1++;
       }
+      // console.log(name);
+
       info.push([parseInt(line), name, "read"]);
+      // var shadowObj = J$.smemory.getShadowFrame(name);
+      // console.log(
+      //   "READ " +
+      //     J$.smemory.getIDFromShadowObjectOrFrame(shadowObj) +
+      //     "." +
+      //     name +
+      //     " at " +
+      //     J$.iidToLocation(J$.sid, iid)
+      // );
+
       return { result: val };
     },
 
@@ -91,6 +89,23 @@
         index1++;
       }
       info.push([parseInt(line), name, "written"]);
+
+      if (info.slice(-2)[0][1].substring(0, 6) == "Object") {
+        if (variableToObjectMap[info.slice(-2)[1][1]] === undefined) {
+          variableToObjectMap[info.slice(-2)[1][1]] = info.slice(-2)[0][1];
+        }
+      }
+
+      // console.log(name);
+      // var shadowObj = J$.smemory.getShadowFrame(name);
+      // console.log(
+      //   "WRITE " +
+      //     J$.smemory.getIDFromShadowObjectOrFrame(shadowObj) +
+      //     "." +
+      //     name +
+      //     " at " +
+      //     J$.iidToLocation(J$.sid, iid)
+      // );
       return { result: val };
     },
 
@@ -120,7 +135,7 @@
     ) {
       var id = J$.getGlobalIID(iid);
       var location = J$.iidToLocation(id);
-      console.log("a field is raed at " + location);
+      // console.log("a field is raed at " + location);
       let index1 = getPosition(location, ":", 2);
       let index2 = getPosition(location, ":", 3);
       var line = location.charAt(index1 + 1);
@@ -128,9 +143,11 @@
         line = line + location.charAt(index1 + 2);
         index1++;
       }
-      console.log(line);
-      console.log(offset);
-      info.push([parseInt(line), offset, "read"]);
+      // console.log(line);
+      const fieldName =
+        offset.toString().charAt(0).toUpperCase() +
+        offset.toString().substring(1);
+      info.push([parseInt(line), "field" + fieldName, "read"]);
       return { result: val };
     },
 
@@ -151,7 +168,7 @@
     putField: function (iid, base, offset, val, isComputed, isOpAssign) {
       var id = J$.getGlobalIID(iid);
       var location = J$.iidToLocation(id);
-      console.log("a field is written at " + location);
+      // console.log("a field is written at " + location);
       let index1 = getPosition(location, ":", 2);
       let index2 = getPosition(location, ":", 3);
       var line = location.charAt(index1 + 1);
@@ -159,30 +176,104 @@
         line = line + location.charAt(index1 + 2);
         index1++;
       }
-      console.log(line);
-      console.log(offset);
-      info.push([parseInt(line), offset, "written"]);
+      // console.log(line);
+      // console.log(offset);
+      const fieldName =
+        offset.toString().charAt(0).toUpperCase() +
+        offset.toString().substring(1);
+      info.push([parseInt(line), "field" + fieldName, "written"]);
       return { result: val };
     },
-
     /**
-     * This callback is called when an execution terminates in node.js.  In a browser
-     * environment, the callback is called if ChainedAnalyses.js or ChainedAnalysesNoCheck.js
-     * is used and Alt-Shift-T is pressed.
+     * This callback is called after a condition check before branching. Branching can happen in various statements
+     * including if-then-else, switch-case, while, for, ||, &&, ?:.
      *
-     * @returns {undefined} - Any return value is ignored
+     * @param {number} iid - Static unique instruction identifier of this callback
+     * @param {*} result - The value of the conditional expression
+     * @returns {{result: *}|undefined} - If an object is returned, the result of the conditional expression is
+     * replaced with the value stored in the <tt>result</tt> property of the object.
      */
+    conditional: function (iid, result) {
+      var id = J$.getGlobalIID(iid);
+      var location = J$.iidToLocation(id);
+      // console.log("a conditional at " + location);
+      let index1 = getPosition(location, ":", 2);
+      let index2 = getPosition(location, ":", 3);
+      var line = location.charAt(index1 + 1);
+      while (index1 + 2 < index2) {
+        line = line + location.charAt(index1 + 2);
+        index1++;
+      }
+      // console.log(line);
+      info.push([parseInt(line), "boolean", "conditional"]);
+      // if (counter == 0) {
+      //   result = !result;
+      // }
+      return { result: result };
+    },
+
     endExecution: function () {
+      const fileNameShorter = fileName.substring(0, fileName.length - 3);
+      if (fs.existsSync("./temporary_" + fileNameShorter + ".txt")) {
+        const dict = JSON.parse(
+          fs.readFileSync("./temporary_" + fileNameShorter + ".txt").toString()
+        );
+        var lineNb = dict[fileName];
+      } else {
+        console.log("unexpected error! Please consult the author!");
+      }
+
+      var replacement = false;
+      // console.log(variableToObjectMap);
+      for (var i = 0; i < info.length; i++) {
+        if (info[i][0] === lineNb) {
+          var variableToReplace = info[i][1];
+          if (variableToObjectMap[info[i][1]]) {
+            replacement = true;
+          }
+        }
+      }
+      if (replacement) {
+        for (var i = 0; i < info.length; i++) {
+          if (info[i][1] === variableToReplace) {
+            info[i][1] = variableToObjectMap[variableToReplace];
+          }
+        }
+      } else {
+        for (var i = info.length - 1; i >= 0; i--) {
+          if (
+            info[i][1].substring(0, 6) &&
+            info[i][1].substring(0, 6) === "Object"
+          ) {
+            info.splice(i, 1);
+          }
+        }
+      }
       var dependency = {};
       console.log(info);
       for (var i = 0; i < info.length; i++) {
         if (info[i][1] != "sliceMe") {
-          // console.log(
-          //   "At location " + info[i][0] + " " + info[i][1] + " is " + info[i][2]
-          // );
-          if (info[i][2] == "written" && dependency[info[i][0]] == undefined) {
+          if (info[i][2] == "written" || info[i][2] == "read") {
             let key = parseInt(info[i][0]);
-            dependency[key] = "declaration of " + info[i][1];
+            if (dependency[key] == undefined) {
+              dependency[key] = "declaration of " + info[i][1];
+            } else {
+              if (typeof dependency[key] != "object") {
+                if (dependency[key] != "declaration of " + info[i][1]) {
+                  dependency[key] = [
+                    dependency[key],
+                    "declaration of " + info[i][1],
+                  ];
+                }
+              } else {
+                if (!dependency[key].includes("declaration of " + info[i][1])) {
+                  dependency[key] = [
+                    ...dependency[key],
+                    "declaration of " + info[i][1],
+                  ];
+                }
+              }
+            }
           }
           if (info[i][2] == "read") {
             for (var j = i - 1; j >= 0; j--) {
@@ -192,9 +283,13 @@
                   dependency[key] = info[j][0];
                 } else {
                   if (typeof dependency[key] != "object") {
-                    dependency[key] = [dependency[key], info[j][0]];
+                    if (dependency[key] != info[j][0]) {
+                      dependency[key] = [dependency[key], info[j][0]];
+                    }
                   } else {
-                    dependency[key] = [...dependency[key], info[j][0]];
+                    if (!dependency[key].includes(info[j][0])) {
+                      dependency[key] = [...dependency[key], info[j][0]];
+                    }
                   }
                 }
                 break;
@@ -203,50 +298,189 @@
           }
         }
       }
-      // console.log(dependency);
-      var lineNb;
-      // const inputs = read_criteria_file("../../testcase.json");
-      const inputs = read_criteria_file("./milestone2_testCases.json");
-      // console.log(inputs);
-      // console.log(fileName);
-
-      for (const object of inputs) {
-        if (object.inFile == fileName) {
-          lineNb = object.lineNb;
+      // deal with the case in which the dependency of a line includes the line itself
+      for (var index in dependency) {
+        if (
+          typeof dependency[index] == "object" &&
+          dependency[index].includes(parseInt(index))
+        ) {
+          for (var i = dependency[index].length - 1; i >= 0; i--) {
+            if (dependency[index][i] == index) {
+              dependency[index].splice(i, 1);
+              if (dependency[index].length == 1) {
+                dependency[index] = dependency[index][0];
+              }
+            }
+          }
+        }
+        if (
+          typeof dependency[index] != "object" &&
+          dependency[index] == parseInt(index)
+        ) {
+          dependency[index] = null;
         }
       }
-      // console.log(lineNb);
-      // var lineNb = 8;
+
+      console.log(dependency);
+
       var dependencyNew = [];
-      // console.log(dependency);
-      agenda = [lineNb];
+      agenda = new Set();
+      agenda.add(lineNb);
+      for (i = 0; i < info.length; i++) {
+        if (info[i][2] == "conditional") {
+          agenda.add(info[i][0]);
+        }
+      }
+      agenda = [...agenda];
+      // removing dependencies after slicing critiria line
+      for (var i = agenda.length - 1; i >= 0; i--) {
+        if (agenda[i] > lineNb) {
+          agenda.pop();
+        } else {
+          break;
+        }
+      }
+      // console.log(agenda);
       while (agenda.length != 0) {
         var node = agenda.pop();
         if (dependency[node] != undefined) {
           if (typeof dependency[node] != "object") {
             agenda.push(dependency[node]);
+            agenda = [...new Set(agenda)];
             dependencyNew.push(dependency[node]);
+            dependencyNew = [...new Set(dependencyNew)];
           } else {
             agenda.push(...dependency[node]);
+            agenda = [...new Set(agenda)];
             dependencyNew.push(...dependency[node]);
+            dependencyNew = [...new Set(dependencyNew)];
           }
         }
       }
+
+      for (var i = dependency.length - 1; i >= 0; i--) {
+        if (dependency[i] == null) {
+          dependency.splice(i, 1);
+        }
+      }
+
       for (var index in dependencyNew) {
         if (typeof dependencyNew[index] == "string") {
           dependencyNew[index] = '"' + dependencyNew[index] + '"';
         }
       }
       dependencyNew = [...new Set(dependencyNew)];
-      console.log("var output = [");
+      for (var i = 0; i < dependencyNew.length; i++) {
+        if (
+          typeof dependencyNew[i] == "string" &&
+          variableToObjectMap[variableToReplace] + '"' ===
+            dependencyNew[i].split(" ").slice(-1)[0]
+        ) {
+          dependencyNew[i] = '"declaration of ' + variableToReplace + '"';
+        }
+      }
+
+      var linesToAdd = [];
+      for (var i = 0; i < info.length; i++) {
+        if (
+          variableToObjectMap[variableToReplace] === info[i][1] &&
+          info[i][2] === "written" &&
+          !dependencyNew.includes(info[i][0])
+        ) {
+          console.log(info[i][1]);
+          linesToAdd.push(info[i][0]);
+        }
+      }
+      // console.log(linesToAdd);
+      dependencyNew = dependencyNew.concat(linesToAdd);
+      dependencyNew.sort();
+
+      // console.log("var output = [");
       console.log(dependencyNew);
-      console.log("module.exports = {output};");
-      fileName = fileName.split("/").slice(-1)[0];
-      // console.log(fileName);
+      // console.log("module.exports = {output};");
       var outFile = "output_" + fileName;
       fs.writeFileSync(outFile, "var output = [");
       fs.appendFileSync(outFile, dependencyNew.toString() + "]");
       fs.appendFileSync(outFile, "\nmodule.exports = {output};");
+    },
+
+    literal: function (iid, val, hasGetterSetter) {
+      if (typeof val === "object") {
+        var id = J$.getGlobalIID(iid);
+        var location = J$.iidToLocation(id);
+        let index1 = getPosition(location, ":", 2);
+        let index2 = getPosition(location, ":", 3);
+        var line = location.charAt(index1 + 1);
+
+        while (index1 + 2 < index2) {
+          line = line + location.charAt(index1 + 2);
+          index1++;
+        }
+        info.push([parseInt(line), "Object" + getValue(val), "written"]);
+      }
+    },
+
+    getFieldPre: function (
+      iid,
+      base,
+      offset,
+      isComputed,
+      isOpAssign,
+      isMethodCall
+    ) {
+      //access shadow memory
+      var shadowObj = J$.smemory.getShadowObject(base, offset, true);
+      // console.log(
+      //   "GET_FIELD " +
+      //     J$.smemory.getIDFromShadowObjectOrFrame(shadowObj.owner) +
+      //     "." +
+      //     offset +
+      //     " at " +
+      //     J$.iidToLocation(J$.sid, iid)
+      // );
+      var id = J$.getGlobalIID(iid);
+      var location = J$.iidToLocation(id);
+      let index1 = getPosition(location, ":", 2);
+      let index2 = getPosition(location, ":", 3);
+      var line = location.charAt(index1 + 1);
+
+      while (index1 + 2 < index2) {
+        line = line + location.charAt(index1 + 2);
+        index1++;
+      }
+      info.push([
+        parseInt(line),
+        "Object" + J$.smemory.getIDFromShadowObjectOrFrame(shadowObj.owner),
+        "read",
+      ]);
+    },
+
+    putFieldPre: function (iid, base, offset, val, isComputed, isOpAssign) {
+      //access shadow memory
+      var shadowObj = J$.smemory.getShadowObject(base, offset, false);
+      // console.log(
+      //   "PUT_FIELD " +
+      //     J$.smemory.getIDFromShadowObjectOrFrame(shadowObj.owner) +
+      //     "." +
+      //     offset +
+      //     " at " +
+      //     J$.iidToLocation(J$.sid, iid)
+      // );
+      var id = J$.getGlobalIID(iid);
+      var location = J$.iidToLocation(id);
+      let index1 = getPosition(location, ":", 2);
+      let index2 = getPosition(location, ":", 3);
+      var line = location.charAt(index1 + 1);
+
+      while (index1 + 2 < index2) {
+        line = line + location.charAt(index1 + 2);
+        index1++;
+      }
+      info.push([
+        parseInt(line),
+        "Object" + J$.smemory.getIDFromShadowObjectOrFrame(shadowObj.owner),
+        "written",
+      ]);
     },
   };
 })();
@@ -255,12 +489,14 @@ function getPosition(string, subString, index) {
   return string.split(subString, index).join(subString).length;
 }
 
-function read_criteria_file(sourceFile) {
-  var data = JSON.parse(readFile(sourceFile));
-  return data;
+function getValue(v) {
+  var type = typeof v;
+  if ((type === "object" || type === "function") && v !== null) {
+    var shadowObj = J$.smemory.getShadowObjectOfObject(v);
+    return J$.smemory.getIDFromShadowObjectOrFrame(shadowObj);
+  } else {
+    return v;
+  }
 }
 
 const fs = require("fs");
-function readFile(fileName) {
-  return fs.readFileSync(fileName, "utf8");
-}
