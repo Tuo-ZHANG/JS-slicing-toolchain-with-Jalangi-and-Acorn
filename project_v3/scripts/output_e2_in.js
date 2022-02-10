@@ -1,2 +1,2 @@
-var output = ["declaration of a","declaration of b","declaration of c","declaration of fieldSemester",2,3,5,6]
+var output = ["declaration of x","declaration of y","declaration of z",5,9]
 module.exports = {output};

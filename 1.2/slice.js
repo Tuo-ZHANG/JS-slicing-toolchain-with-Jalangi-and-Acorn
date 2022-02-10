@@ -4,7 +4,7 @@ const escodegen = require("escodegen");
 
 // pull in the cmd line args
 const args = process.argv[2];
-console.log(args);
+// console.log(args);
 const buffer = fs.readFileSync(args).toString();
 var root = acorn.parse(buffer, { locations: true });
 var body = root.body;
@@ -30,4 +30,4 @@ for (var k = body.length - 1; k >= 0; k--) {
   }
 }
 
-// console.log(escodegen.generate(root));
+console.log(escodegen.generate(root));
